@@ -46,7 +46,7 @@ class Annotator:
                 x1, y1, x2, y2 = box
                 for zi in range(self.z_depth):
                     cropped = self.rgb_stack[zi, y1:y2, x1:x2, :]
-                    cv2.imwrite(os.path.join(cell_folder, f"cell{folder_counter}_z{zi}.png"), (cropped * 255).astype(np.uint8))
+                    cv2.imwrite(os.path.join(cell_folder, f"cell{folder_counter}_z{zi}.png"), cv2.cvtColor((cropped * 255).astype(np.uint8), cv2.COLOR_RGB2BGR))
                 folder_counter += 1
     def on_trackbar(self, val):
         self.current_z = val
@@ -78,10 +78,8 @@ class Annotator:
                 self.save_annotations()
                 break
             elif key == ord('w'):
-                print('up pressed') # up arrow
                 self.current_z = min(self.z_depth - 1, self.current_z + 1)
             elif key == ord('s'):
-                print('down pressed')  # down arrow
                 self.current_z = max(0, self.current_z - 1)
 
         cv2.destroyAllWindows()
