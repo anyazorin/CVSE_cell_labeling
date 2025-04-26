@@ -1,8 +1,11 @@
+test.ipynb
+*.dv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.png
 # C extensions
 *.so
 
