@@ -3,9 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 import json
 import os
-from scipy.linalg import eig
 from matplotlib.patches import Ellipse
-
 class ImageMasker:
     def __init__(self, dvimage_obj, json_path):
         self.ref_hsv_green = [40, 100, 120]
@@ -258,137 +256,13 @@ class ImageMasker:
             # plot
             fig, ax = plt.subplots()
             ax.imshow(mask if mask.ndim==3 else mask, cmap=None if mask.ndim==3 else 'gray')
-            ell = Ellipse((x0, y0), width=2*a_len, height=2*b_len,
+            ell = Ellipse((x0, y0), width=.5*b_len, height=.5*a_len,
                           angle=theta, edgecolor='r', facecolor='none')
             ax.add_patch(ell)
             ax.set_title(f"Fitted ellipse: center=({x0:.1f},{y0:.1f}), axes=({a_len:.1f},{b_len:.1f}), angle={theta:.1f}\u00b0")
             ax.axis('off')
             plt.show()
         return a
-    
-    def plot_general_ellipse(a, b, c, d, e, f, ax=None, **plot_kwargs):
-        """
-        Plot the ellipse defined by
-            a x^2 + b x y + c y^2 + d x + e y + f = 0
-        """
-        # 1) Compute center by solving ∇(quadratic) = 0:
-        #    [2a  b ] [x0] + [ d ] = 0
-        #    [ b 2c] [y0]   [ e ]
-        M = np.array([[2*a, b],
-                    [b,   2*c]])
-        rhs = np.array([-d, -e])
-        x0, y0 = np.linalg.solve(M, rhs)
-
-        # 2) Compute the constant term at the center:
-        f0 = (a*x0**2 + b*x0*y0 + c*y0**2 + d*x0 + e*y0 + f)
-
-        # 3) Build the 2×2 “shape” matrix Q for the quadratic form:
-        Q = np.array([[a,   b/2],
-                    [b/2,  c  ]])
-
-        # Check that this is an ellipse:
-        #    Q must be positive-definite and f0 < 0
-        eigvals, eigvecs = np.linalg.eigh(Q)
-        if not (eigvals[0] > 0 and eigvals[1] > 0 and f0 < 0):
-            raise ValueError("These coefficients do not define a (real) ellipse.")
-
-        # 4) Semi-axes lengths are sqrt(−f0/λ_i):
-        axes = np.sqrt(-f0 / eigvals)
-
-        # 5) Parameterize the unit circle, stretch, rotate, translate:
-        θ = np.linspace(0, 2*np.pi, 400)
-        circle = np.vstack((axes[0]*np.cos(θ), axes[1]*np.sin(θ)))
-        ellipse_pts = eigvecs @ circle
-        xs = ellipse_pts[0, :] + x0
-        ys = ellipse_pts[1, :] + y0
-
-        # 6) Plot
-        if ax is None:
-            fig, ax = plt.subplots()
-        ax.plot(xs, ys, **plot_kwargs)
-        ax.set_aspect('equal', 'datalim')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_title('General ellipse')
-        return ax
-
-    def norm_find_ellipse(self, mask, show=False):
-        """
-        Fit an ellipse to the True pixels in mask using Direct Least Squares
-        with normalization for numerical stability.
-
-        mask: H×W painted mask array or boolean mask array
-        show: if True, overlay the fitted ellipse on the mask and display it
-        Returns a numpy array [A, B, C, D, E, F] of conic coefficients,
-        or None if fitting fails.
-        """
-        # Boolean mask
-        if mask.ndim == 3:
-            mask_bool = np.any(mask != 0, axis=-1)
-        else:
-            mask_bool = mask
-        ys, xs = np.nonzero(mask_bool)
-        if xs.size < 6:
-            return None
-        x = xs.astype(np.float64)
-        y = ys.astype(np.float64)
-        # Normalize: translate mean to origin, scale so max range = 2
-        xm, ym = x.mean(), y.mean()
-        dx, dy = x.max() - x.min(), y.max() - y.min()
-        if dx == 0 or dy == 0:
-            return None
-        scale = max(dx, dy) / 2.0
-        xn = (x - xm) / scale
-        yn = (y - ym) / scale
-        # Build normalized design matrix
-        Dn = np.vstack([xn*xn, xn*yn, yn*yn, xn, yn, np.ones_like(xn)]).T
-        Sn = Dn.T @ Dn
-        # Constraint
-        Cmat = np.zeros((6, 6), dtype=np.float64)
-        Cmat[0, 2] = Cmat[2, 0] = -2
-        Cmat[1, 1] = 1
-        from scipy.linalg import eig
-        eigvals, eigvecs = eig(Sn, Cmat)
-        cond = np.isfinite(eigvals) & (eigvals < 0)
-        if not np.any(cond):
-            return None
-        a_norm = eigvecs[:, cond][:, 0].real
-        # Un-normalize coefficients: xn = (x - xm)/scale
-        A , B , C , D , E , F = a_norm
-        # A = A_ * scale * scale
-        # B = B_ * scale * scale
-        # C = C_ * scale * scale
-        # D = D_ * scale - 2*A*xm - B*ym
-        # E = E_ * scale - B*xm - 2*C*ym
-        # F = F_ - D_*xm*scale - E_*ym*scale + A*xm*xm + B*xm*ym + C*ym*ym
-        a = np.array([A, B, C, D, E, F])
-        if show:
-            # Convert to geometric and display
-            denom = B*B - 4*A*C
-            x0 = (2*C*D - B*E) / denom
-            y0 = (2*A*E - B*D) / denom
-            up = 2*(A*E*E + C*D*D + F*B*B - B*D*E - A*C*F)
-            term = np.sqrt((A - C)**2 + B*B)
-            down1 = (B*B - 4*A*C)*(term - (A + C))
-            down2 = (B*B - 4*A*C)*(-term - (A + C))
-            a_len = np.sqrt(up / down1)
-            b_len = np.sqrt(up / down2)
-            theta = 0.5 * np.degrees(np.arctan2(B, A - C))
-            fig, ax = plt.subplots()
-            ax.imshow(mask if mask.ndim==3 else mask_bool,
-                      cmap=None if mask.ndim==3 else 'gray')
-            ell = Ellipse((x0, y0), width=2*a_len, height=2*b_len,
-                          angle=theta, edgecolor='r', facecolor='none')
-            ax.add_patch(ell)
-            ax.set_title(
-                f"Fitted ellipse: center=({x0:.1f},{y0:.1f}), "
-                f"axes=({a_len:.1f},{b_len:.1f}), angle={theta:.1f}°"
-            )
-            ax.axis('off')
-            plt.show()
-        return a
-
-
 
     def openCV_find_ellipse(self, mask, show=False):
         """
@@ -522,8 +396,7 @@ class ImageMasker:
                 raise ValueError(mask_method)
 
             green_center = self.find_center(green_masked, show=True)
-            # self.norm_find_ellipse(red_masked, show=True)
-            self.find_ellipse(red_masked, show=True)
+            a = self.find_ellipse(red_masked, show=True)
             if green_center is not None:
                 # convert to global image coords
                 cx_img = int(x1 + green_center[0])
@@ -534,7 +407,7 @@ class ImageMasker:
 
             # augment the entry
             entry['center'] = {'x': cx_img, 'y': cy_img}
-            entry['ellipse'] = None  # placeholder
+            entry['ellipse'] = a.tolist() if a is not None else None
 
             out_data.append(entry)
 
