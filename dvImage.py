@@ -4,10 +4,11 @@ import numpy as np
 class dvImage:
     def __init__(
         self,
-        filepath,
+        imgname,
         data_save_dir = "data/loaded_data",
     ):
-        self.img = AICSImage(filepath)
+        self.imgname = imgname
+        self.img = AICSImage(f"data/{imgname}")
         self.data = self.img.get_image_data("TZYXC")  # "CTZYX" = Time, Channel, Z-stack, Y, X
         self.rgb_data = self._normalize_rgb()
 

@@ -1,3 +1,4 @@
 aicsimageio
 numpy
 opencv-python
+matplotlib

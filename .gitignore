@@ -8,6 +8,7 @@ __pycache__/
 *.png
 # C extensions
 *.so
+*.json
 
 # Distribution / packaging
 .Python

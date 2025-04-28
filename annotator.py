@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 class Annotator:
-    def __init__(self, dv_image, save_dir="annotations"):
+    def __init__(self, dv_image, save_dir):
         self.dv_image = dv_image
         self.save_dir = save_dir
         self.rgb_stack = self.dv_image.rgb_data[0]  # T=0 always
