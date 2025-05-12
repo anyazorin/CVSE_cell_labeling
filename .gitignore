@@ -1,6 +1,9 @@
 test.ipynb
 *.dv
 *.pdf
+annotations/
+annotations_noisy/
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
